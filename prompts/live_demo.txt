@@ -1,0 +1,16 @@
+The following link was provided as a submission to a hackathon:
+
+"{{url}}" 
+
+Go to the page and test this app, then clasify the page as a "demo link", a
+"video link", or "not working". Editor environments (ie. replit, trinket,
+codespaces) should be classified as "not working". Package pages (ie. pypi,
+npmjs, cargo) should be classified as "demo link". Generally custom sites should
+count as a "demo link" even if some functionality on the site doesn't work.
+
+No yapping – just respond back with the classification word and no explaination.
+Do not structure your output as json or another format, only use one of the
+following:
+- demo link
+- video link
+- not working

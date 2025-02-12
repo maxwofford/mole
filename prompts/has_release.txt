@@ -1,0 +1,20 @@
+Please check if this project has an installer or released version:
+
+{{url}}
+
+You may click around to explore the README or the releases or tagged versions.
+
+Things that count for a release:
+- a rust project, even without a release because all rust projects can be installed on cargo
+- golang projects, even without a release becasue all golang projects can be installed from git
+- python packages published on pypi
+- js projects that are published on npm
+- c#, c++, c, etc. projects with a github release
+- c#, c++, c, etc. projects with an image in their readme
+- a repo that has a release with an attached build (ie. .apk, .iso, .exe)
+
+Things that don't count as a release:
+- a python script without a github release
+- a github release with only the compressed source files and no binary or executable
+
+No yapping– respond back with "yes: YOUR_REASONING" or "no: YOUR_REASONING". always start with "yes" or "no" and give a short 1 sentence reason afterwards
