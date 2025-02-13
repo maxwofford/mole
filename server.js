@@ -72,7 +72,7 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
+async function analyzeHackathonProject(repoUrl = '', demoUrl = '', readmeUrl = '') {
   // check all are accessible
   console.log('checking basic check')
   const basicResult = await basicCheck(repoUrl, demoUrl, readmeUrl)
@@ -100,7 +100,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
       reason: 'Error checking README.md',
     }
   }
-  
+
   console.log('checking live demo check')
   const liveDemoResult = await liveDemoCheck(demoUrl)
   console.log('result:', liveDemoResult)
@@ -156,6 +156,26 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   }
 }
 
+async function processFlaskRequest(promptText, replacementUrl) {
+  const prompt = promptText.replace('{{url}}', replacementUrl);
+  try {
+    const response = await fetch('http://localhost:3001/process', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Flask server error:', errorText);
+      return { result: 'failed', gif: null };
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error calling Flask server:', error);
+    return { result: 'failed', gif: null };
+  }
+}
+
 async function basicCheck(repoUrl, demoUrl, readmeUrl) {
   const [repoResponse, demoResponse, readmeResponse] = await Promise.all([
     fetch(repoUrl),
@@ -171,7 +191,7 @@ async function basicCheck(repoUrl, demoUrl, readmeUrl) {
 
 async function readmeCheck(readme) {
   const readmeText = await fetch(readme).then(res => res.text())
-  
+
   const prompt = await Bun.file('./prompts/review_readme.txt').text()
   const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
@@ -202,23 +222,8 @@ async function readmeCheck(readme) {
 async function liveDemoCheck(demoUrl) {
   try {
     const prompt = await Bun.file('./prompts/live_demo.txt').text()
-    const response = await fetch('http://localhost:3001/process', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        prompt: prompt.replace('{{url}}', demoUrl)
-      })
-    });
+    const { result, gif } = await processFlaskRequest(prompt, demoUrl);
 
-    if (!response.ok) {
-      console.error('Flask server error:', await response.text());
-      return 'failed';
-    }
-
-    const { result, gif }= await response.json();
-    
     console.log('python result', result);
     console.log('python reasoning', gif)
     if (result == 'demo link') {
@@ -237,23 +242,8 @@ async function liveDemoCheck(demoUrl) {
 async function videoCheck(demoUrl) {
   try {
     const prompt = await Bun.file('./prompts/video_justification.txt').text()
-    const response = await fetch('http://localhost:3001/process', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        prompt: prompt.replace('{{url}}', demoUrl)
-      })
-    });
+    const { result, gif } = await processFlaskRequest(prompt, demoUrl);
 
-    if (!response.ok) {
-      console.error('Flask server error:', await response.text());
-      return 'inference-error';
-    }
-
-    const { result, gif }= await response.json();
-    
     console.log('python result', result);
     console.log('python reasoning', gif)
 
@@ -272,18 +262,8 @@ async function videoCheck(demoUrl) {
 
 async function checkRepoForRelease(repoUrl, readmeUrl) {
   const prompt = await Bun.file('./prompts/has_release.txt').text()
-  const response = await fetch('http://localhost:3001/process', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      prompt: prompt.replace('{{url}}', repoUrl)
-    })
-  })
+  const { result, gif } = await processFlaskRequest(prompt, repoUrl);
 
-  const { result, gif }= await response.json();
-  
   console.log('python result', result);
   console.log('python reasoning', gif)
 
@@ -329,11 +309,11 @@ const server = serve({
     } catch (error) {
       console.error('Server error:', error);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Internal server error',
-          details: error.message 
-        }), 
-        { 
+          details: error.message
+        }),
+        {
           status: 500,
           headers: {
             'Content-Type': 'application/json',
