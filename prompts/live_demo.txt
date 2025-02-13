@@ -2,11 +2,26 @@ The following link was provided as a submission to a hackathon:
 
 "{{url}}" 
 
-Go to the page and test this app, then clasify the page as a "demo link", a
-"video link", or "not working". Editor environments (ie. replit, trinket,
-codespaces) should be classified as "not working". Package pages (ie. pypi,
-npmjs, cargo) should be classified as "demo link". Generally custom sites should
-count as a "demo link" even if some functionality on the site doesn't work.
+Visit and classify the link into one of these categories:
+1. for example, classify it as "demo link" if:
+   - It's an interactive web application
+   - It's a published package (npm, PyPI, cargo)
+   - It's a landing page with clear functionality
+   - It's a game or interactive experience
+   - OAuth/login is required but the core functionality works
+   - API documentation with working endpoints
+
+2. for example, classify it as "video link" if:
+   - It's a YouTube/Vimeo/other video platform
+   - It's a recorded demo or walkthrough
+   - It's an animation or gif demonstration
+
+3. for example, classify it as "not working" if:
+   - The link is dead or returns errors
+   - It's a development environment (replit, codespaces)
+   - It's just static documentation with no demo
+   - Core functionality is completely broken
+   - It's just a repository with no live demo
 
 No yapping – just respond back with the classification word and no explaination.
 Do not structure your output as json or another format, only use one of the
