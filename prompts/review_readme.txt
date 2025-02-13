@@ -4,7 +4,7 @@ templated.
 Signs of a templated README:
 - Default create-react-app/next.js/etc. content
 - Generic installation instructions without project context
-- Placeholder text or TODOs
+- Placeholder text
 - Default badges without customization
 - Standard boilerplate sections without actual content
 
