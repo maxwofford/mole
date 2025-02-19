@@ -12,6 +12,7 @@ Things that count for a release:
 - c#, c++, c, etc. projects with a github release
 - c#, c++, c, etc. projects with an image in their readme
 - a repo that has a release with an attached build (ie. .apk, .iso, .exe)
+- nix flakes are considered a release if there's a .nix file in the repo
 
 Things that don't count as a release:
 - a python script without a github release
