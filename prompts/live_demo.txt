@@ -8,7 +8,14 @@ codespaces) should be classified as "not working". Package pages (ie. pypi,
 npmjs, cargo) should be classified as "demo link". Generally custom sites should
 count as a "demo link" even if some functionality on the site doesn't work.
 
-No yapping – just respond back with the classification word and no explaination.
+Links without a domain (ie. 102.168.19.4/index.html) should be classified as "not working".
+
+A presentation, google doc, or google sheet is "not working".
+
+A link to a discord invite (as long as the invite isn't expired), or a link to a
+slack channel is fine to show off bots.
+
+No yapping – just respond back with the classification word and a short explanation. for example "demo link: this is a simple tic tac toe app on the web", or "not working: the page 404s"
 Do not structure your output as json or another format, only use one of the
 following:
 - demo link

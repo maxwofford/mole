@@ -88,16 +88,23 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   console.log('checking readme check')
   const readmeCheckResult = await readmeCheck(readmeUrl)
   console.log('result:', readmeCheckResult)
-  if (readmeCheckResult == 'failed') {
+  if (readmeCheckResult.startsWith('templated')) {
     return {
       decision: 'false',
-      reason: 'README.md is not a good readme',
+      reason: readmeCheckResult,
     }
   }
-  if (readmeCheckResult == 'inference-error') {
+  if (readmeCheckResult.startsWith('ai-generated')) {
     return {
       decision: 'false',
-      reason: 'Error checking README.md',
+      reason: readmeCheckResult,
+    }
+  }
+
+  if (!readmeCheckResult.startsWith('specific')) {
+    return {
+      decision: 'false',
+      reason: 'AI inference error on readme check: ' + readmeCheckResult,
     }
   }
   
@@ -105,21 +112,14 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   const liveDemoResult = await liveDemoCheck(demoUrl)
   console.log('result:', liveDemoResult)
 
-  if (liveDemoResult == 'success') {
+  if (liveDemoResult.startsWith('demo link')) {
     return {
       decision: 'true',
-      reason: 'Live demo is working',
+      reason: 'Live demo is working: ' + liveDemoResult,
     }
   }
 
-  if (liveDemoResult == 'failed') {
-    return {
-      decision: 'false',
-      reason: 'Live demo is not working',
-    }
-  }
-
-  if (liveDemoResult == 'video') {
+  if (liveDemoResult.startsWith('video link')) {
     console.log('checking video check')
     const videoResult = await videoCheck(demoUrl)
     console.log('result:', videoResult)
@@ -153,6 +153,20 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
         reason: 'Error checking video',
       }
     }
+  }
+
+
+  if (liveDemoResult.startsWith('not working')) {
+    return {
+      decision: 'false',
+      reason: 'Live demo is not working: ' + liveDemoResult
+    }
+  }
+
+  // if result doesn't start with demo link, video link, or not working, it's an inference error
+  return {
+    decision: 'false',
+    reason: 'AI inference error on live demo check: ' + liveDemoResult,
   }
 }
 
@@ -189,14 +203,7 @@ async function readmeCheck(readme) {
   })
 
   const result = response.content[0].text
-
-  if (result == 'templated') {
-    return 'failed'
-  } else if (result == 'specific') {
-    return 'success'
-  } else {
-    return 'inference-error'
-  }
+  return result
 }
 
 async function liveDemoCheck(demoUrl) {
@@ -221,13 +228,7 @@ async function liveDemoCheck(demoUrl) {
     
     console.log('python result', result);
     console.log('python reasoning', gif)
-    if (result == 'demo link') {
-      return 'success';
-    } else if (result == 'video link') {
-      return 'video';
-    } else {
-      return 'failed';
-    }
+    return result
   } catch (error) {
     console.error('Error calling Flask server:', error);
     return 'failed';
