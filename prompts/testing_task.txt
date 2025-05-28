@@ -10,6 +10,8 @@ If there is a login feature, make sure to include that. Test the most important 
 
 Also don't be too hard– if testing a recipie app and you search for "chili" and it returns nothing found, try a couple other searches before assuming it doesn't work.
 
+You don't have access to a discord, reddit, or anything else for sigin beyond email.
+
 Here are a couple examples:
 
 - "This is a maze generation game. Generate a new maze and try getting through it. It's ok if you can't solve it, but you should be able to generate a maze and make some progress"

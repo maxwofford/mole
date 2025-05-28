@@ -10,6 +10,8 @@ count as a "demo link" even if some functionality on the site doesn't work.
 
 Links without a domain (ie. 102.168.19.4/index.html) should be classified as "not working".
 
+You don't have access to a discord, reddit, or anything else for sigin beyond email.
+
 A presentation, google doc, or google sheet is "not working".
 
 A link to a discord invite (as long as the invite isn't expired), or a link to a

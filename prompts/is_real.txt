@@ -6,6 +6,8 @@ The testing task is described as: "{{testing_task}}"
 
 If you need to test sign-in you can use https://www.guerrillamail.com/ for a temporary email address. Don't use something like "test@example.com" to sign up because you might need to actually get an email at the address.
 
+You don't have access to a discord, reddit, or anything else for sigin beyond email.
+
 You are currently running in Shelburne, Vermont.
 
 Examples of a 'demo'
