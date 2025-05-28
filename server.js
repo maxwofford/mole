@@ -113,9 +113,32 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   console.log('result:', liveDemoResult)
 
   if (liveDemoResult.startsWith('demo link')) {
-    return {
-      decision: 'true',
-      reason: 'Live demo is working: ' + liveDemoResult,
+    // return {
+    //   decision: 'true',
+    //   reason: 'Live demo is working: ' + liveDemoResult,
+    // }
+    const isRealResult = await isRealCheck(demoUrl)
+    console.log('result:', isRealResult)
+    if (isRealResult.toUpperCase().startsWith('NO_TASK')) {
+      return {
+        decision: 'false',
+        reason: isRealResult,
+      }
+    } else if (isRealResult.toUpperCase().startsWith('DEMO')) {
+      return {
+        decision: 'false',
+        reason: 'Link is a demo, not a shipped project: ' + isRealResult,
+      }
+    } else if (isRealResult.toUpperCase().startsWith('REAL')) {
+      return {
+        decision: 'true',
+        reason: 'Live demo is a real project: ' + isRealResult,
+      }
+    } else {
+      return {
+        decision: 'false',
+        reason: 'AI inference error on live demo check: ' + isRealResult,
+      }
     }
   }
 
@@ -269,6 +292,39 @@ async function videoCheck(demoUrl) {
     console.error('Error calling Flask server:', error);
     return 'inference-error';
   }
+}
+
+async function isRealCheck(demoUrl) {
+  // check the project & come up with a testing task
+  const testingTaskPrompt = await Bun.file('./prompts/testing_task.txt').text()
+  const testingTaskResponse = await fetch('http://localhost:3001/process', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      prompt: testingTaskPrompt.replace('{{url}}', demoUrl)
+    })
+  }).then(r => r.json())
+
+  const testingTask = testingTaskResponse.result
+  console.log('testing task', testingTask)
+  if (testingTask.toLowerCase().startsWith('no_task')) {
+    return testingTask
+  }
+
+  const isRealPrompt = await Bun.file('./prompts/is_real.txt').text()
+  const isRealResponse = await fetch('http://localhost:3001/process', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      prompt: isRealPrompt.replace('{{url}}', demoUrl).replace('{{testing_task}}', testingTask)
+    })
+  }).then(r => r.json())
+
+  return isRealResponse.result
 }
 
 async function checkRepoForRelease(repoUrl, readmeUrl) {

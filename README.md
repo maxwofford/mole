@@ -11,11 +11,15 @@ This project is built to help me review all the projects submitted for [High Sea
 ## Installation
 
 ```sh
-# install packages with venv
-python -m venv .venv
+# install packages with uv
+uv venv
 source .venv/bin/activate  # On Unix/macOS
-pip install -r requirements.txt
+uv pip compile requirements.txt -o requirements.lock  # Generate lockfile
+uv pip install -r requirements.lock
 bun i
+
+# install Playwright browsers
+playwright install chromium --with-deps --no-shell
 
 # start up everything
 bun run server.js

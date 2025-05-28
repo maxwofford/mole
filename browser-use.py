@@ -27,7 +27,7 @@ async def main(prompt):
 	browser = Browser(
 		config=BrowserConfig(
 			# NOTE: you need to close your chrome browser - so that this can open your browser in debug mode
-			chrome_instance_path='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+			# chrome_instance_path='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 
 			# wss_url=f'wss://production-sfo.browserless.io/chrome/playwright?token={os.getenv("BROWSERLESS_API_KEY")}'
 		)
