@@ -72,10 +72,39 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
+async function inferReadmeUrl(repoUrl) {
+  const prompt = await Bun.file('./prompts/infer_readme.txt').text()
+  const inferredRepo = await inference(prompt.replace('{{url}}', repoUrl))
+  if (inferredRepo.toUpperCase().startsWith('NOT/FOUND')) {
+    return null
+  }
+
+  console.log('inferred repo', inferredRepo)
+
+  const response = await fetch('https://api.github.com/repos/' + inferredRepo + '/readme')
+  const data = await response.json()
+  if (response.status !== 200) {
+    return null
+  }
+  console.log('readme data', data)
+  return data.download_url
+}
+
 async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   // check all are accessible
   console.log('checking basic check')
-  const basicResult = await basicCheck(repoUrl, demoUrl, readmeUrl)
+  let checkedReadmeUrl = readmeUrl
+  if (!readmeUrl) {
+    checkedReadmeUrl = await inferReadmeUrl(repoUrl)
+  }
+  if (!checkedReadmeUrl) {
+    return {
+      decision: 'false',
+      reason: 'README or repo not found',
+    }
+  }
+  console.log({readmeUrl: checkedReadmeUrl})
+  const basicResult = await basicCheck(repoUrl, demoUrl, checkedReadmeUrl)
   console.log('result:', basicResult)
 
   if (basicResult == 'failed') {
@@ -86,7 +115,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   }
 
   console.log('checking readme check')
-  const readmeCheckResult = await readmeCheck(readmeUrl)
+  const readmeCheckResult = await readmeCheck(checkedReadmeUrl)
   console.log('result:', readmeCheckResult)
   if (readmeCheckResult.startsWith('templated')) {
     return {
@@ -153,7 +182,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
       }
     } else if (videoResult == 'failed') {
       console.log('checking repo for release')
-      const checkRepoResult = await checkRepoForRelease(repoUrl, readmeUrl)
+      const checkRepoResult = await checkRepoForRelease(repoUrl, checkedReadmeUrl)
       if (checkRepoResult.startsWith('yes')) {
         return {
           decision: 'true',
@@ -206,13 +235,12 @@ async function basicCheck(repoUrl, demoUrl, readmeUrl) {
   return 'success'
 }
 
-async function readmeCheck(readme) {
-  const readmeText = await fetch(readme).then(res => res.text())
-  
-  const prompt = await Bun.file('./prompts/review_readme.txt').text()
+async function inference(prompt) {
   const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
   })
+
+  console.log('prompt', prompt)
 
   const response = await anthropic.messages.create({
     model: 'claude-3-5-sonnet-20240620',
@@ -220,12 +248,21 @@ async function readmeCheck(readme) {
     messages: [
       {
         role: 'user',
-        content: prompt + '\n\n' + readmeText.substring(0, 1000),
+        content: prompt,
       },
     ],
   })
 
   const result = response.content[0].text
+  console.log('anthropic result', result)
+  return result
+}
+
+async function readmeCheck(readme) {
+  const readmeText = await fetch(readme).then(res => res.text())
+  
+  const prompt = await Bun.file('./prompts/review_readme.txt').text()
+  const result = await inference(prompt + '\n\n' + readmeText.substring(0, 1000))
   return result
 }
 

@@ -10,8 +10,7 @@ while (true) {
     filterByFormula: `AND(
     {ai_guess} = BLANK(),
     NOT(BLANK() = {play_url}),
-    NOT(BLANK() = {repo_url}),
-    NOT(BLANK() = {readme_url})
+    NOT(BLANK() = {repo_url})
     )`,
     maxRecords: 1
   }).all();
