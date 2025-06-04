@@ -3,8 +3,8 @@
 ## Commands
 
 ### Build/Run/Test
-- Start application: `./start.sh` or `bun run mole-server/index.js`
-- Start worker: `cd mole-worker && bun run server.js`
+- Start application: `./start.sh` or `bun run mole-nexus/index.js`
+- Start worker: `cd mole-worker && bun run worker.js`
 - Build worker docker: `cd mole-worker && docker build -t mole-worker .`
 - Test worker docker: `docker run --rm --env-file .env mole-worker "prompt here"`
 - Install deps (server): `cd mole-server && bun install`

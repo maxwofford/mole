@@ -1,0 +1,13 @@
+Visit {{url}} and create a simple testing task to verify this is a real working application.
+
+For static/portfolio sites: Test basic functionality like navigation, links, or content display
+For web apps: Test core functionality like forms, buttons, or user interactions  
+For mobile apps: Return NO_TASK (cannot test mobile apps in browser)
+For CLI tools: Return NO_TASK (cannot test command-line tools in browser)
+For sites requiring special interactions (right-click, drag-drop, etc): Return NO_TASK
+
+Respond with one of:
+- `NO_TASK: reason` - Unable to create meaningful testing task
+- 'TASK: description` - A brief, actionable testing instruction that can be performed in a browser
+
+No yapping.

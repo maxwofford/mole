@@ -1,0 +1,7 @@
+Visit {{url}} and check if this GitHub repository has any releases or deployments.
+
+Respond with one of:
+- `HAS_RELEASE: description` - Repository has releases/deployments
+- `NO_RELEASE: reason` - Repository lacks releases/deployments
+
+No yapping.

@@ -1,0 +1,7 @@
+Visit {{url}} and evaluate the video demonstration.
+
+Respond with one of:
+- `JUSTIFIED: reason` - Video adequately demonstrates functionality
+- `NOT_JUSTIFIED: reason` - Video insufficient or inadequate
+
+No yapping.

@@ -1,0 +1,8 @@
+Visit the URL {{url}} and classify it.
+
+Respond with one of:
+- `DEMO_LINK: description` - Working live demo/application (website, app, app store listing)
+- `VIDEO_LINK: description` - Video demonstration (YouTube, MP4, Vimeo)
+- `NOT_WORKING: reason` - Broken or inaccessible (404, error, DNS failure)
+
+No yapping.
