@@ -84,3 +84,19 @@ export function isDevelopment() {
 export function useRealAPIs() {
   return CONFIG.AI_PROVIDER !== 'mock' && !CONFIG.USE_TEST_FIXTURES
 }
+
+// Get the model name for the current AI provider
+export function getModelName() {
+  switch (CONFIG.AI_PROVIDER) {
+    case 'gemini':
+      return 'gemini-1.5-flash'
+    case 'anthropic':
+      return 'claude-3-5-sonnet-20240620'
+    case 'ollama':
+      return CONFIG.OLLAMA_MODEL
+    case 'mock':
+      return 'mock-ai'
+    default:
+      return 'unknown'
+  }
+}

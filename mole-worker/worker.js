@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { Anthropic } from '@anthropic-ai/sdk'
 import { MockAI } from './mock-ai.js'
-import { CONFIG, validateConfig, isDevelopment, useRealAPIs } from './config.js'
+import { CONFIG, validateConfig, isDevelopment, useRealAPIs, getModelName } from './config.js'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -169,7 +169,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
     return {
       decision: 'false',
       reason: 'README or repo not found',
-      model: 'gemini-1.5-flash',
+      model: getModelName(),
     }
   }
   
@@ -187,7 +187,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
     return {
       decision: 'false',
       reason: 'Some of the URLs are not accessible',
-      model: 'gemini-1.5-flash',
+      model: getModelName(),
     }
   }
 
@@ -237,31 +237,31 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
       return {
         decision: 'false',
         reason: isRealResult,
-        model: 'gemini-1.5-flash',
+        model: getModelName(),
       }
     } else if (isRealResult.toUpperCase().startsWith('DEMO')) {
       return {
         decision: 'false',
         reason: 'Link is a demo, not a shipped project: ' + isRealResult,
-        model: 'gemini-1.5-flash',
+        model: getModelName(),
       }
     } else if (isRealResult.toUpperCase().startsWith('REAL')) {
       return {
         decision: 'true',
         reason: 'Live demo is a real project: ' + isRealResult,
-        model: 'gemini-1.5-flash',
+        model: getModelName(),
       }
     } else if (isRealResult.toUpperCase().startsWith('HUMAN')) {
       return {
         decision: 'human',
         reason: 'Requires human evaluation: ' + isRealResult,
-        model: 'gemini-1.5-flash',
+        model: getModelName(),
       }
     } else {
       return {
         decision: 'false',
         reason: 'AI inference error on live demo check: ' + isRealResult,
-        model: 'gemini-1.5-flash',
+        model: getModelName(),
       }
     }
   }
@@ -274,7 +274,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
       return {
         decision: 'true',
         reason: 'Live demo is a video',
-        model: 'gemini-1.5-flash',
+        model: getModelName(),
       }
     } else if (videoResult == 'failed') {
       console.log('checking repo for release')
@@ -283,26 +283,26 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
         return {
           decision: 'true',
           reason: `Live demo is a video, but the repo has a release. ${checkRepoResult}`,
-          model: 'gemini-1.5-flash',
+          model: getModelName(),
         }
       } else if (checkRepoResult.toUpperCase().startsWith('NO_RELEASE')) {
         return {
           decision: 'false',
           reason: `Live demo is a video, but the repo does not have a release. ${checkRepoResult}`,
-          model: 'gemini-1.5-flash',
+          model: getModelName(),
         }
       } else {
         return {
           decision: 'false',
           reason: 'Error checking repo for release',
-          model: 'gemini-1.5-flash',
+          model: getModelName(),
         }
       }
     } else {
       return {
         decision: 'false',
         reason: 'Error checking video',
-        model: 'gemini-1.5-flash',
+        model: getModelName(),
       }
     }
   }
@@ -312,7 +312,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
     return {
       decision: 'false',
       reason: 'Live demo is not working: ' + liveDemoResult,
-      model: 'gemini-1.5-flash',
+      model: getModelName(),
     }
   }
 
@@ -320,7 +320,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   return {
     decision: 'false',
     reason: 'AI inference error on live demo check: ' + liveDemoResult,
-    model: 'gemini-1.5-flash',
+    model: getModelName(),
   }
 }
 
@@ -374,7 +374,7 @@ function getAIInstance() {
     switch (CONFIG.AI_PROVIDER) {
       case 'gemini':
         const genAI = new GoogleGenerativeAI(CONFIG.GEMINI_API_KEY)
-        aiInstance = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+        aiInstance = genAI.getGenerativeModel({ model: getModelName() })
         break
       case 'anthropic':
         aiInstance = new Anthropic({
