@@ -1,4 +1,4 @@
-import { analyzeHackathonProject } from '../mole-worker/worker.js';
+import { analyzeHackathonProject, WorkerRateLimitError, WorkerShutdownError } from '../mole-worker/worker.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
@@ -6,20 +6,7 @@ import { existsSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Auto-load .env if it exists
-const envPath = join(__dirname, '../.env');
-if (existsSync(envPath)) {
-  const envFile = await Bun.file(envPath).text();
-  for (const line of envFile.split('\n')) {
-    if (line.includes('=')) {
-      const [key, value] = line.split('=', 2);
-      process.env[key] = value;
-    }
-  }
-  console.log('✅ Loaded environment variables from .env');
-} else {
-  console.log('⚠️  No .env file found at project root');
-}
+
 
 // Configuration
 const MAX_WORKERS = parseInt(process.env.MAX_MOLE_WORKERS) || 4;
@@ -205,6 +192,7 @@ async function processRecord(record) {
       fields: {
         'ai_guess': result.decision,
         'ai_reasoning': result.reason,
+        'ai_model': result.model || 'gemini-1.5-flash',
       }
     });
     
@@ -212,6 +200,15 @@ async function processRecord(record) {
     
   } catch (error) {
     console.error(`❌ Error processing record ${recordId}:`, error);
+    
+    // Handle specific worker errors
+    if (error instanceof WorkerRateLimitError) {
+      console.log('⚠️ Worker hit rate limit - slowing down processing');
+      await Bun.sleep(30000); // Wait 30 seconds before continuing
+    } else if (error instanceof WorkerShutdownError) {
+      console.log('🛑 Worker hit credit limit - shutting down nexus');
+      process.exit(1);
+    }
     
     // Update record with error status
     try {
