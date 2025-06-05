@@ -431,9 +431,6 @@ async function inference(prompt) {
   }
   
   if (CONFIG.AI_PROVIDER === 'gemini') {
-    console.log('GEMINI_API_KEY exists:', !!CONFIG.GEMINI_API_KEY)
-    console.log('GEMINI_API_KEY length:', CONFIG.GEMINI_API_KEY?.length || 0)
-    
     try {
       const result = await ai.generateContent(prompt)
       const response = await result.response
@@ -459,9 +456,6 @@ async function inference(prompt) {
   }
   
   if (CONFIG.AI_PROVIDER === 'anthropic') {
-    console.log('ANTHROPIC_API_KEY exists:', !!CONFIG.ANTHROPIC_API_KEY)
-    console.log('ANTHROPIC_API_KEY length:', CONFIG.ANTHROPIC_API_KEY?.length || 0)
-    
     try {
       const result = await ai.messages.create({
         model: 'claude-3-5-sonnet-20240620',
@@ -495,9 +489,6 @@ async function inference(prompt) {
   }
   
   if (CONFIG.AI_PROVIDER === 'ollama') {
-    console.log(`Ollama URL: ${CONFIG.OLLAMA_BASE_URL}`)
-    console.log(`Ollama Model: ${CONFIG.OLLAMA_MODEL}`)
-    
     try {
       const result = await ai.generateContent(prompt)
       console.log({prompt, result})
