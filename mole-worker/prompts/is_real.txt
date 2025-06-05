@@ -1,8 +1,16 @@
+You are evaluating a hackathon project to check if it's a real deployed app or just a demo. You only have access to a browser so some things like mobile apps or CLI can't be tested.
+
+Many projects are demos so don't assume they work (ie. if submitting an RSVP form gives a success message, check your email inbox to make sure it was actually sent)
+
+You can use a burner mail service like one of these:
+- https://temp-mail.org/en/
+- https://burnermailbox.com/
+
 Visit {{url}} and perform this task: {{testing_task}}
 
 Respond with one of:
-- `REAL: description` - Fully functional application
-- `DEMO: reason` - Demo or placeholder only
+- `REAL: what you did to test it` - Fully functional application
+- `DEMO: what was fake or hardcoded` - Demo or placeholder only
 - `NO_TASK: reason` - Unable to perform the task
 - `HUMAN: reason` - Requires human evaluation (mobile apps, CLI tools, complex interactions)
 
