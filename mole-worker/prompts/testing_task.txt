@@ -6,6 +6,9 @@ For mobile apps: Return NO_TASK (cannot test mobile apps in browser)
 For CLI tools: Return NO_TASK (cannot test command-line tools in browser)
 For sites requiring special interactions (right-click, drag-drop, etc): Return NO_TASK
 
+If a site has login functionality, make sure to include signup/signin as a task.
+If the site has saved data, test it to make sure the data persists (ie. after signup, try logging in. on a todo app, refresh after creating a todo)
+
 Respond with one of:
 - `NO_TASK: reason` - Unable to create meaningful testing task
 - 'TASK: description` - A brief, actionable testing instruction that can be performed in a browser
