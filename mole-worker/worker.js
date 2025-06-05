@@ -1,4 +1,4 @@
-import { Anthropic } from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 // Auto-load .env if it exists
 import { existsSync } from 'fs'
@@ -177,6 +177,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
     return {
       decision: 'false',
       reason: 'README or repo not found',
+      model: 'gemini-1.5-flash',
     }
   }
   
@@ -194,6 +195,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
     return {
       decision: 'false',
       reason: 'Some of the URLs are not accessible',
+      model: 'gemini-1.5-flash',
     }
   }
 
@@ -243,26 +245,31 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
       return {
         decision: 'false',
         reason: isRealResult,
+        model: 'gemini-1.5-flash',
       }
     } else if (isRealResult.toUpperCase().startsWith('DEMO')) {
       return {
         decision: 'false',
         reason: 'Link is a demo, not a shipped project: ' + isRealResult,
+        model: 'gemini-1.5-flash',
       }
     } else if (isRealResult.toUpperCase().startsWith('REAL')) {
       return {
         decision: 'true',
         reason: 'Live demo is a real project: ' + isRealResult,
+        model: 'gemini-1.5-flash',
       }
     } else if (isRealResult.toUpperCase().startsWith('HUMAN')) {
       return {
         decision: 'human',
         reason: 'Requires human evaluation: ' + isRealResult,
+        model: 'gemini-1.5-flash',
       }
     } else {
       return {
         decision: 'false',
         reason: 'AI inference error on live demo check: ' + isRealResult,
+        model: 'gemini-1.5-flash',
       }
     }
   }
@@ -275,6 +282,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
       return {
         decision: 'true',
         reason: 'Live demo is a video',
+        model: 'gemini-1.5-flash',
       }
     } else if (videoResult == 'failed') {
       console.log('checking repo for release')
@@ -283,22 +291,26 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
         return {
           decision: 'true',
           reason: `Live demo is a video, but the repo has a release. ${checkRepoResult}`,
+          model: 'gemini-1.5-flash',
         }
       } else if (checkRepoResult.toUpperCase().startsWith('NO_RELEASE')) {
         return {
           decision: 'false',
           reason: `Live demo is a video, but the repo does not have a release. ${checkRepoResult}`,
+          model: 'gemini-1.5-flash',
         }
       } else {
         return {
           decision: 'false',
           reason: 'Error checking repo for release',
+          model: 'gemini-1.5-flash',
         }
       }
     } else {
       return {
         decision: 'false',
         reason: 'Error checking video',
+        model: 'gemini-1.5-flash',
       }
     }
   }
@@ -307,7 +319,8 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   if (liveDemoResult.toUpperCase().startsWith('NOT_WORKING')) {
     return {
       decision: 'false',
-      reason: 'Live demo is not working: ' + liveDemoResult
+      reason: 'Live demo is not working: ' + liveDemoResult,
+      model: 'gemini-1.5-flash',
     }
   }
 
@@ -315,6 +328,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   return {
     decision: 'false',
     reason: 'AI inference error on live demo check: ' + liveDemoResult,
+    model: 'gemini-1.5-flash',
   }
 }
 
@@ -346,25 +360,49 @@ async function basicCheck(repoUrl, demoUrl, readmeUrl) {
   }
 }
 
+class WorkerRateLimitError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = 'WorkerRateLimitError'
+  }
+}
+
+class WorkerShutdownError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = 'WorkerShutdownError'
+  }
+}
+
 async function inference(prompt) {
-  const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  })
+  console.log('GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY)
+  console.log('GEMINI_API_KEY length:', process.env.GEMINI_API_KEY?.length || 0)
+  
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
-  const response = await anthropic.messages.create({
-    model: 'claude-3-5-sonnet-20240620',
-    max_tokens: 1000,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  })
-
-  const result = response.content[0].text
-  console.log({prompt, result})
-  return result
+  try {
+    const result = await model.generateContent(prompt)
+    const response = await result.response
+    const text = response.text()
+    
+    console.log({prompt, result: text})
+    return text
+  } catch (error) {
+    console.error('Gemini API error:', error)
+    
+    // Handle rate limiting and quota exceeded
+    if (error.status === 429) {
+      console.log('Rate limited - throwing WorkerRateLimitError')
+      throw new WorkerRateLimitError('Rate limited by Gemini API')
+    } else if (error.status === 403) {
+      console.log('Quota exceeded - throwing WorkerShutdownError')
+      throw new WorkerShutdownError('Gemini API quota exceeded')
+    }
+    
+    // Re-throw other errors
+    throw error
+  }
 }
 
 async function readmeCheck(readme) {
@@ -381,10 +419,16 @@ async function liveDemoCheck(demoUrl) {
     const result = await runWorkerDocker(promptText)
 
     console.log('python result', result.result);
+    
+    // Handle empty or invalid responses
+    if (!result.result || result.result.trim() === '' || result.result === 'none') {
+      return 'NOT_WORKING: Browser automation returned empty result'
+    }
+    
     return result.result
   } catch (error) {
     console.error('Error calling docker worker:', error);
-    return 'failed';
+    return 'NOT_WORKING: Docker worker error - ' + error.message;
   }
 }
 
@@ -455,4 +499,4 @@ async function checkRepoForRelease(repoUrl, readmeUrl) {
 }
 
 // Export for testing and use by mole-server
-export { analyzeHackathonProject }
+export { analyzeHackathonProject, WorkerRateLimitError, WorkerShutdownError }
