@@ -20,7 +20,7 @@ def get_llm():
         if not api_key:
             raise ValueError('GEMINI_API_KEY required when AI_PROVIDER=gemini')
         return ChatGoogleGenerativeAI(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             google_api_key=api_key
         )
     elif ai_provider == 'anthropic':

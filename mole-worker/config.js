@@ -89,7 +89,7 @@ export function useRealAPIs() {
 export function getModelName() {
   switch (CONFIG.AI_PROVIDER) {
     case 'gemini':
-      return 'gemini-1.5-flash'
+      return 'gemini-2.0-flash'
     case 'anthropic':
       return 'claude-3-5-sonnet-20240620'
     case 'ollama':
