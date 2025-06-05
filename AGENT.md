@@ -3,12 +3,23 @@
 ## Commands
 
 ### Build/Run/Test
+
+#### Quick Setup
+- Setup for development: `./scripts/setup-dev.sh`
+- Test worker with mocks: `./scripts/test-worker.sh`
+
+#### Manual Commands
 - Start application: `./start.sh` or `bun run mole-nexus/index.js`
 - Start worker: `cd mole-worker && bun run worker.js`
 - Build worker docker: `cd mole-worker && docker build -t mole-worker .`
 - Test worker docker: `docker run --rm --env-file .env mole-worker "prompt here"`
-- Install deps (server): `cd mole-server && bun install`
-- Install deps (worker): `cd mole-worker && uv pip install -r requirements.txt`
+- Install deps (server): `cd mole-nexus && bun install`
+- Install deps (worker): `cd mole-worker && bun install && uv pip install -r requirements.txt`
+
+#### Development Modes
+- Mock mode (no API costs): Set `AI_PROVIDER=mock` in .env
+- Local AI with Ollama: `docker-compose --profile ollama up -d`
+- Real AI APIs: Set `AI_PROVIDER=gemini` and add API keys to .env
 
 ## Code Style Guidelines
 

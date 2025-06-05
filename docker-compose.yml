@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # Ollama for local AI inference
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - ollama
+
+  # Mole Nexus (main orchestrator)
+  mole-nexus:
+    build:
+      context: ./mole-nexus
+      dockerfile: Dockerfile
+    environment:
+      - AI_PROVIDER=${AI_PROVIDER:-mock}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - NODE_ENV=${NODE_ENV:-development}
+      - USE_TEST_FIXTURES=${USE_TEST_FIXTURES:-true}
+      - MAX_MOLE_WORKERS=${MAX_MOLE_WORKERS:-2}
+    depends_on:
+      - ollama
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: bun run mole-nexus/index.js
+    profiles:
+      - full
+
+  # Mole Worker (analysis engine)
+  mole-worker:
+    build:
+      context: ./mole-worker
+      dockerfile: Dockerfile
+    environment:
+      - AI_PROVIDER=${AI_PROVIDER:-mock}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - NODE_ENV=${NODE_ENV:-development}
+      - ENABLE_BROWSER_USE=${ENABLE_BROWSER_USE:-false}
+    depends_on:
+      - ollama
+    volumes:
+      - .:/app
+    working_dir: /app
+    profiles:
+      - worker
+
+volumes:
+  ollama-data:
+
+# Usage:
+# Local development with mocks: docker-compose up
+# With Ollama: docker-compose --profile ollama up
+# Full stack: docker-compose --profile ollama --profile full up
+# Worker only: docker-compose --profile ollama --profile worker up

@@ -1,23 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
-
-// Auto-load .env if it exists
-import { existsSync } from 'fs'
-import { dirname, join } from 'path'
+import { MockAI } from './mock-ai.js'
+import { CONFIG, validateConfig, isDevelopment, useRealAPIs } from './config.js'
+import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+
+// Validate configuration on startup
+validateConfig()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
-
-const envPath = join(__dirname, '../.env')
-if (existsSync(envPath)) {
-  const envFile = await Bun.file(envPath).text()
-  for (const line of envFile.split('\n')) {
-    if (line.includes('=')) {
-      const [key, value] = line.split('=', 2)
-      process.env[key] = value
-    }
-  }
-}
 
 // Docker worker helper function
 async function runWorkerDocker(prompt) {
@@ -374,35 +365,101 @@ class WorkerShutdownError extends Error {
   }
 }
 
-async function inference(prompt) {
-  console.log('GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY)
-  console.log('GEMINI_API_KEY length:', process.env.GEMINI_API_KEY?.length || 0)
-  
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+// Global AI instance - initialized based on configuration
+let aiInstance = null
 
-  try {
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    const text = response.text()
-    
-    console.log({prompt, result: text})
-    return text
-  } catch (error) {
-    console.error('Gemini API error:', error)
-    
-    // Handle rate limiting and quota exceeded
-    if (error.status === 429) {
-      console.log('Rate limited - throwing WorkerRateLimitError')
-      throw new WorkerRateLimitError('Rate limited by Gemini API')
-    } else if (error.status === 403) {
-      console.log('Quota exceeded - throwing WorkerShutdownError')
-      throw new WorkerShutdownError('Gemini API quota exceeded')
+function getAIInstance() {
+  if (!aiInstance) {
+    switch (CONFIG.AI_PROVIDER) {
+      case 'gemini':
+        const genAI = new GoogleGenerativeAI(CONFIG.GEMINI_API_KEY)
+        aiInstance = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+        break
+      case 'mock':
+        aiInstance = new MockAI()
+        break
+      case 'ollama':
+        aiInstance = {
+          async generateContent(prompt) {
+            const response = await fetch(`${CONFIG.OLLAMA_BASE_URL}/api/generate`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: CONFIG.OLLAMA_MODEL,
+                prompt: prompt,
+                stream: false
+              })
+            })
+            
+            if (!response.ok) {
+              throw new Error(`Ollama API error: ${response.status} ${response.statusText}`)
+            }
+            
+            const data = await response.json()
+            return data.response
+          }
+        }
+        break
+      default:
+        throw new Error(`Unsupported AI provider: ${CONFIG.AI_PROVIDER}`)
     }
-    
-    // Re-throw other errors
-    throw error
   }
+  return aiInstance
+}
+
+async function inference(prompt) {
+  const ai = getAIInstance()
+  
+  if (CONFIG.AI_PROVIDER === 'mock') {
+    console.log(`[${CONFIG.AI_PROVIDER.toUpperCase()}] Processing prompt...`)
+    return await ai.generateContent(prompt)
+  }
+  
+  if (CONFIG.AI_PROVIDER === 'gemini') {
+    console.log('GEMINI_API_KEY exists:', !!CONFIG.GEMINI_API_KEY)
+    console.log('GEMINI_API_KEY length:', CONFIG.GEMINI_API_KEY?.length || 0)
+    
+    try {
+      const result = await ai.generateContent(prompt)
+      const response = await result.response
+      const text = response.text()
+      
+      console.log({prompt, result: text})
+      return text
+    } catch (error) {
+      console.error('Gemini API error:', error)
+      
+      // Handle rate limiting and quota exceeded
+      if (error.status === 429) {
+        console.log('Rate limited - throwing WorkerRateLimitError')
+        throw new WorkerRateLimitError('Rate limited by Gemini API')
+      } else if (error.status === 403) {
+        console.log('Quota exceeded - throwing WorkerShutdownError')
+        throw new WorkerShutdownError('Gemini API quota exceeded')
+      }
+      
+      // Re-throw other errors
+      throw error
+    }
+  }
+  
+  if (CONFIG.AI_PROVIDER === 'ollama') {
+    console.log(`Ollama URL: ${CONFIG.OLLAMA_BASE_URL}`)
+    console.log(`Ollama Model: ${CONFIG.OLLAMA_MODEL}`)
+    
+    try {
+      const result = await ai.generateContent(prompt)
+      console.log({prompt, result})
+      return result
+    } catch (error) {
+      console.error('Ollama API error:', error)
+      throw error
+    }
+  }
+  
+  throw new Error(`Unsupported AI provider: ${CONFIG.AI_PROVIDER}`)
 }
 
 async function readmeCheck(readme) {
