@@ -5,7 +5,7 @@ Respond with one of:
 - `AI_GENERATED: reason` - AI-generated content detected  
 - `SPECIFIC: reason` - Project-specific content
 
-No yapping.
+No yapping. Just respond back in the correct format. Also, don't include any formatting or markdown, only use plain text.
 
 README content:
 {{content}}
