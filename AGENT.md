@@ -7,6 +7,7 @@
 #### Quick Setup
 - Setup for development: `./scripts/setup-dev.sh`
 - Test worker with mocks: `./scripts/test-worker.sh`
+- Start nexus with monitoring: `cd mole-nexus && bun run index.js` (Dashboard at http://localhost:3001)
 
 #### Manual Commands
 - Start application: `./start.sh` or `bun run mole-nexus/index.js`
@@ -15,6 +16,12 @@
 - Test worker docker: `docker run --rm --env-file .env mole-worker "prompt here"`
 - Install deps (server): `cd mole-nexus && bun install`
 - Install deps (worker): `cd mole-worker && bun install && uv pip install -r requirements.txt`
+
+#### Monitoring
+- Web dashboard: http://localhost:3001 (when nexus is running)
+- Status API: http://localhost:3001/api/status
+- Shows: active workers, queued jobs, processed count, worker details
+- Auto-refreshes every 2 seconds
 
 #### Development Modes
 - Mock mode (no API costs): Set `AI_PROVIDER=mock` in .env

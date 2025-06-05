@@ -1,10 +1,14 @@
 import { analyzeHackathonProject, WorkerRateLimitError, WorkerShutdownError } from '../mole-worker/worker.js';
+import { createMonitoringServer } from './monitoring.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// HTTP server for monitoring
+let server;
 
 
 
@@ -84,6 +88,11 @@ class Semaphore {
 }
 
 const workerSemaphore = new Semaphore(MAX_WORKERS);
+
+// Worker tracking for monitoring
+let activeWorkers = new Map(); // Map of workerId -> { record, startTime, status }
+let jobsProcessed = 0;
+let totalJobs = 0;
 
 // Docker management functions
 async function checkDockerImageExists(imageName) {
@@ -174,6 +183,7 @@ async function ensureDockerImage(imageName) {
 async function processRecord(record) {
   const recordId = record.id;
   const { repo_url, play_url, readme_url } = record.fields;
+  const workerId = `worker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
   console.log(`🔄 Processing record: ${recordId}`);
   console.log(`   Repo: ${repo_url}`);
@@ -183,20 +193,57 @@ async function processRecord(record) {
   // Acquire semaphore (wait if all workers are busy)
   await workerSemaphore.acquire();
   
+  // Track worker start
+  activeWorkers.set(workerId, {
+    record: { id: recordId, repo_url, play_url },
+    startTime: new Date(),
+    status: 'analyzing'
+  });
+  
   try {
     const result = await analyzeHackathonProject(repo_url, play_url, readme_url);
     console.log(`✅ Analysis complete for ${recordId}: ${result.decision}`);
     
-    // Update Airtable record
-    await airtableRequest('PATCH', recordId, {
-      fields: {
-        'ai_guess': result.decision,
-        'ai_reasoning': result.reason,
-        'ai_model': result.model || 'gemini-1.5-flash',
-      }
+    // Update worker status
+    if (activeWorkers.has(workerId)) {
+      activeWorkers.get(workerId).status = 'updating';
+    }
+    
+    // Find all records with the same repo_url and readme_url
+    const duplicateParams = new URLSearchParams({
+      filterByFormula: `AND(
+        {repo_url} = "${repo_url}",
+        ${readme_url ? `{readme_url} = "${readme_url}"` : 'BLANK() = {readme_url}'}
+      )`
     });
     
-    console.log(`📝 Updated Airtable record ${recordId}`);
+    let duplicateRecords = [];
+    try {
+      const duplicateData = await airtableRequest('GET', `?${duplicateParams}`);
+      duplicateRecords = duplicateData.records || [];
+      console.log(`🔍 Found ${duplicateRecords.length} records with same repo/readme`);
+    } catch (error) {
+      console.error(`⚠️ Failed to find duplicates for ${recordId}:`, error);
+      duplicateRecords = [{ id: recordId }]; // Fallback to just the current record
+    }
+    
+    // Update all duplicate records
+    for (const duplicate of duplicateRecords) {
+      try {
+        await airtableRequest('PATCH', duplicate.id, {
+          fields: {
+            'ai_guess': result.decision,
+            'ai_reasoning': result.reason,
+            'ai_model': result.model,
+          }
+        });
+        console.log(`📝 Updated duplicate record ${duplicate.id}`);
+      } catch (error) {
+        console.error(`❌ Failed to update duplicate ${duplicate.id}:`, error);
+      }
+    }
+    
+    jobsProcessed++;
     
   } catch (error) {
     console.error(`❌ Error processing record ${recordId}:`, error);
@@ -222,6 +269,9 @@ async function processRecord(record) {
       console.error(`❌ Failed to update error status for ${recordId}:`, updateError);
     }
   } finally {
+    // Clean up worker tracking
+    activeWorkers.delete(workerId);
+    
     // Always release the semaphore
     workerSemaphore.release();
   }
@@ -274,6 +324,8 @@ async function startNexus() {
       
       console.log(`📋 Found ${records.length} records, dispatching to ${availableWorkers} available workers`);
       
+      totalJobs += records.length;
+      
       // Start processing records without waiting for completion
       for (const record of records) {
         processRecord(record); // Don't await - let it run concurrently
@@ -290,8 +342,43 @@ async function startNexus() {
   }
 }
 
+
+
+// Create status function for monitoring
+function getMonitoringStatus() {
+  return {
+    workers: {
+      active: workerSemaphore.currentCount,
+      max: MAX_WORKERS,
+      queued: workerSemaphore.waitingQueue.length,
+      available: MAX_WORKERS - workerSemaphore.currentCount
+    },
+    jobs: {
+      processed: jobsProcessed,
+      total: totalJobs,
+      inProgress: activeWorkers.size
+    },
+    activeWorkers: Array.from(activeWorkers.entries()).map(([id, worker]) => ({
+      id,
+      recordId: worker.record.id,
+      repoUrl: worker.record.repo_url,
+      demoUrl: worker.record.play_url,
+      status: worker.status,
+      startTime: worker.startTime,
+      duration: Date.now() - worker.startTime.getTime()
+    })),
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  };
+}
+
 // Start the nexus
-startNexus().catch((error) => {
+async function main() {
+  server = createMonitoringServer(getMonitoringStatus);
+  await startNexus();
+}
+
+main().catch((error) => {
   console.error('❌ Failed to start nexus:', error);
   process.exit(1);
 });
