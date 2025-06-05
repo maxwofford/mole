@@ -26,7 +26,7 @@ if (existsSync(envPath)) {
 // Environment configuration
 export const CONFIG = {
   // AI Provider Settings
-  AI_PROVIDER: process.env.AI_PROVIDER || 'mock', // 'gemini', 'mock', 'ollama'
+  AI_PROVIDER: process.env.AI_PROVIDER || 'mock', // 'gemini', 'anthropic', 'mock', 'ollama'
   
   // API Keys
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
@@ -55,6 +55,10 @@ export function validateConfig() {
   
   if (CONFIG.AI_PROVIDER === 'gemini' && !CONFIG.GEMINI_API_KEY) {
     errors.push('GEMINI_API_KEY required when AI_PROVIDER=gemini')
+  }
+  
+  if (CONFIG.AI_PROVIDER === 'anthropic' && !CONFIG.ANTHROPIC_API_KEY) {
+    errors.push('ANTHROPIC_API_KEY required when AI_PROVIDER=anthropic')
   }
   
   if (CONFIG.AI_PROVIDER === 'ollama' && !CONFIG.OLLAMA_BASE_URL) {

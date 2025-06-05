@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { Anthropic } from '@anthropic-ai/sdk'
 import { MockAI } from './mock-ai.js'
 import { CONFIG, validateConfig, isDevelopment, useRealAPIs } from './config.js'
 import { join, dirname } from 'path'
@@ -375,6 +376,11 @@ function getAIInstance() {
         const genAI = new GoogleGenerativeAI(CONFIG.GEMINI_API_KEY)
         aiInstance = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
         break
+      case 'anthropic':
+        aiInstance = new Anthropic({
+          apiKey: CONFIG.ANTHROPIC_API_KEY,
+        })
+        break
       case 'mock':
         aiInstance = new MockAI()
         break
@@ -438,6 +444,42 @@ async function inference(prompt) {
       } else if (error.status === 403) {
         console.log('Quota exceeded - throwing WorkerShutdownError')
         throw new WorkerShutdownError('Gemini API quota exceeded')
+      }
+      
+      // Re-throw other errors
+      throw error
+    }
+  }
+  
+  if (CONFIG.AI_PROVIDER === 'anthropic') {
+    console.log('ANTHROPIC_API_KEY exists:', !!CONFIG.ANTHROPIC_API_KEY)
+    console.log('ANTHROPIC_API_KEY length:', CONFIG.ANTHROPIC_API_KEY?.length || 0)
+    
+    try {
+      const result = await ai.messages.create({
+        model: 'claude-3-5-sonnet-20240620',
+        max_tokens: 1000,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      })
+      
+      const text = result.content[0].text
+      console.log({prompt, result: text})
+      return text
+    } catch (error) {
+      console.error('Anthropic API error:', error)
+      
+      // Handle rate limiting and quota exceeded
+      if (error.status === 429) {
+        console.log('Rate limited - throwing WorkerRateLimitError')
+        throw new WorkerRateLimitError('Rate limited by Anthropic API')
+      } else if (error.status === 403) {
+        console.log('Quota exceeded - throwing WorkerShutdownError')
+        throw new WorkerShutdownError('Anthropic API quota exceeded')
       }
       
       // Re-throw other errors
