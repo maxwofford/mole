@@ -14,7 +14,14 @@ const __dirname = dirname(__filename)
 // Docker worker helper function
 async function runWorkerDocker(prompt) {
   try {
-    const proc = Bun.spawn(['docker', 'run', '--rm', '-e', `OPENAI_API_KEY=${process.env.OPENAI_API_KEY}`, '-e', `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`, 'mole-worker', prompt], {
+    const proc = Bun.spawn(['docker', 'run', '--rm', 
+      '-e', `AI_PROVIDER=${CONFIG.AI_PROVIDER}`,
+      '-e', `OPENAI_API_KEY=${process.env.OPENAI_API_KEY}`, 
+      '-e', `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`,
+      '-e', `GEMINI_API_KEY=${process.env.GEMINI_API_KEY}`,
+      '-e', `OLLAMA_BASE_URL=${process.env.OLLAMA_BASE_URL}`,
+      '-e', `OLLAMA_MODEL=${process.env.OLLAMA_MODEL}`,
+      'mole-worker', prompt], {
       stdout: 'pipe',
       stderr: 'pipe'
     });
@@ -556,13 +563,22 @@ async function isRealCheck(demoUrl) {
   const testingTaskPrompt = await prompt('testing_task', { url: demoUrl })
   const testingTaskResponse = await runWorkerDocker(testingTaskPrompt)
 
-  const testingTask = testingTaskResponse.result
+  let testingTask = testingTaskResponse.result
   console.log('testing task', testingTask)
   
   // Validate that testing task returns proper status codes
   if (!testingTask.toUpperCase().startsWith('TASK:') && !testingTask.toUpperCase().startsWith('NO_TASK:')) {
-    // Invalid response format - treat as inference error
-    return 'HUMAN: AI inference error - invalid testing task format'
+    // If the response looks like it actually performed a test (indicating a real app), treat as valid
+    if (testingTask.toLowerCase().includes('tested') || 
+        testingTask.toLowerCase().includes('successful') || 
+        testingTask.toLowerCase().includes('functional') ||
+        testingTask.toLowerCase().includes('working')) {
+      // Convert to proper format
+      testingTask = 'TASK: ' + testingTask;
+    } else {
+      // Invalid response format - treat as inference error
+      return 'HUMAN: AI inference error - invalid testing task format'
+    }
   }
   
   if (testingTask.toUpperCase().startsWith('NO_TASK:')) {

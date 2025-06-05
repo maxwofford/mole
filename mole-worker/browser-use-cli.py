@@ -5,15 +5,43 @@ import asyncio
 from pathlib import Path
 
 from browser_use.agent.views import ActionResult
-from langchain_anthropic import ChatAnthropic
 from browser_use import Agent, Controller
 from browser_use.browser.browser import Browser, BrowserConfig
 from browser_use.browser.context import BrowserContext
 
 
-async def main(prompt):
-    api_key = os.environ.get('ANTHROPIC_API_KEY')
+def get_llm():
+    """Get the appropriate LLM based on AI_PROVIDER environment variable"""
+    ai_provider = os.environ.get('AI_PROVIDER', 'anthropic')
     
+    if ai_provider == 'gemini':
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        api_key = os.environ.get('GEMINI_API_KEY')
+        if not api_key:
+            raise ValueError('GEMINI_API_KEY required when AI_PROVIDER=gemini')
+        return ChatGoogleGenerativeAI(
+            model='gemini-1.5-flash',
+            google_api_key=api_key
+        )
+    elif ai_provider == 'anthropic':
+        from langchain_anthropic import ChatAnthropic
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        if not api_key:
+            raise ValueError('ANTHROPIC_API_KEY required when AI_PROVIDER=anthropic')
+        return ChatAnthropic(
+            model='claude-3-5-sonnet-20241022',
+            api_key=api_key
+        )
+    elif ai_provider == 'ollama':
+        from langchain_community.llms import Ollama
+        base_url = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+        model = os.environ.get('OLLAMA_MODEL', 'llama3.1')
+        return Ollama(base_url=base_url, model=model)
+    else:
+        raise ValueError(f'Unsupported AI provider: {ai_provider}')
+
+
+async def main(prompt):
     browser = Browser(
         config=BrowserConfig(
             # Use headless mode in Docker
@@ -28,10 +56,7 @@ async def main(prompt):
 
     agent = Agent(
         task=prompt,
-        llm=ChatAnthropic(
-            model='claude-3-5-sonnet-20241022',
-            api_key=api_key
-        ),
+        llm=get_llm(),
         browser=browser,
         generate_gif=gif_path
     )
