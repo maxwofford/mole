@@ -64,3 +64,30 @@ All AI prompts must return standardized status codes. Responses can optionally i
 #### Release Check
 - `HAS_RELEASE: description` - Repository has releases/deployments
 - `NO_RELEASE: reason` - Repository lacks releases/deployments
+
+## Git Best Practices for Parallel Agents
+
+### Pre-commit Checks
+- Always run `git status` before making changes to see current state
+- Check for unstaged changes with `git diff` before modifying files
+- Verify no merge conflicts exist before starting work
+
+### Staging Changes
+- Use `git add path/to/specific/file.js` instead of `git add .` or `git add -A`
+- Stage only files you actually modified to avoid conflicts
+- Review staged changes with `git diff --cached` before committing
+
+### Atomic Commits
+- Make small, focused commits that address one specific change
+- Use sentence case commit messages: `Add explaination to output`
+- Start with action verbs: `Add`, `Update`, `Fix`, `Remove`, `Rewrite`
+
+### Conflict Prevention
+- Pull latest changes with `git pull` before starting work
+- Check for concurrent modifications with `git log --oneline -5`
+- Use `git stash` to temporarily save work when switching contexts
+
+### Collaboration Safety
+- Never force push (`git push --force`) in shared repositories
+- Use `git push --force-with-lease` if force push is absolutely necessary
+- Check branch status with `git branch -v` before switching branches
