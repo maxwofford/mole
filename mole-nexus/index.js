@@ -10,8 +10,6 @@ const __dirname = dirname(__filename);
 // HTTP server for monitoring
 let server;
 
-
-
 // Configuration
 const MAX_WORKERS = parseInt(process.env.MAX_MOLE_WORKERS) || 4;
 const DOCKER_IMAGE_NAME = 'mole-worker';
@@ -24,6 +22,63 @@ if (!process.env.AIRTABLE_API_KEY) {
   console.error('❌ AIRTABLE_API_KEY not found in environment variables');
   console.error('💡 Make sure .env file exists with AIRTABLE_API_KEY=your_key');
   process.exit(1);
+}
+
+// Helper function to upload GIF directly to Airtable
+async function uploadGifToAirtable(recordId, gifPath) {
+  try {
+    const fs = await import('fs');
+    
+    if (!fs.existsSync(gifPath)) {
+      console.log('📹 GIF file does not exist:', gifPath);
+      return null;
+    }
+    
+    console.log('📤 Uploading GIF directly to Airtable...');
+    
+    // Upload directly to Airtable's upload attachment endpoint
+    const uploadUrl = `https://content.airtable.com/v0/${AIRTABLE_BASE_ID}/${recordId}/ai_recording/uploadAttachment`;
+    
+    const fileBuffer = fs.readFileSync(gifPath);
+    const base64Data = fileBuffer.toString('base64');
+    
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contentType: 'image/gif',
+        file: base64Data,
+        filename: 'recording.gif'
+      })
+    });
+    
+    if (!uploadResponse.ok) {
+      console.error('❌ Airtable attachment upload failed:', uploadResponse.status, uploadResponse.statusText);
+      const errorText = await uploadResponse.text();
+      console.error('Error details:', errorText);
+      return null;
+    }
+    
+    const result = await uploadResponse.json();
+    console.log('✅ Successfully uploaded GIF to Airtable');
+    
+    // The response contains the full record with the attachment in the field
+    // Extract the attachment URL from the field data
+    const fieldId = Object.keys(result.fields)[0]; // Get the first field (should be ai_recording field)
+    const attachments = result.fields[fieldId];
+    
+    if (attachments && attachments.length > 0) {
+      return attachments[0].url;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Error uploading GIF to Airtable:', error);
+    return null;
+  }
 }
 
 // Helper function to make Airtable API calls
@@ -197,11 +252,25 @@ async function processRecord(record) {
   activeWorkers.set(workerId, {
     record: { id: recordId, repo_url, play_url },
     startTime: new Date(),
-    status: 'analyzing'
+    status: 'analyzing',
+    stage: 'Starting analysis',
+    stepsCompleted: 0,
+    totalSteps: 6,
+    currentPrompt: `Analyzing hackathon project: ${repo_url}`
   });
   
   try {
-    const result = await analyzeHackathonProject(repo_url, play_url, readme_url);
+    // Create status reporter function
+    const updateStatus = (stage, stepsCompleted, currentPrompt) => {
+      if (activeWorkers.has(workerId)) {
+        const worker = activeWorkers.get(workerId);
+        worker.stage = stage;
+        worker.stepsCompleted = stepsCompleted;
+        worker.currentPrompt = currentPrompt;
+      }
+    };
+    
+    const result = await analyzeHackathonProject(repo_url, play_url, readme_url, updateStatus);
     console.log(`✅ Analysis complete for ${recordId}: ${result.decision}`);
     
     // Update worker status
@@ -230,14 +299,40 @@ async function processRecord(record) {
     // Update all duplicate records
     for (const duplicate of duplicateRecords) {
       try {
-        await airtableRequest('PATCH', duplicate.id, {
-          fields: {
-            'ai_guess': result.decision,
-            'ai_reasoning': result.reason,
-            'ai_model': result.model,
+        const updateFields = {
+          'ai_guess': result.decision,
+          'ai_reasoning': result.reason,
+          'ai_model': result.model,
+          'prioritize': false,
+        };
+        
+        // Update readme_url if it was discovered during analysis
+        if (result.readme_url) {
+          updateFields.readme_url = result.readme_url;
+        }
+        
+        // Add GIF recording if available
+        if (result.gifPath && result.gifPath !== 'undefined') {
+          try {
+            console.log('📹 Uploading GIF recording to Airtable:', result.gifPath);
+            const attachmentUrl = await uploadGifToAirtable(duplicate.id, result.gifPath);
+            if (attachmentUrl) {
+              updateFields.ai_recording = [{
+                url: attachmentUrl
+              }];
+              console.log('📹 Successfully uploaded GIF recording');
+            }
+          } catch (uploadError) {
+            console.error('❌ Failed to upload GIF:', uploadError);
           }
+        } else {
+          console.log('📹 No GIF recording available for upload');
+        }
+        
+        await airtableRequest('PATCH', duplicate.id, {
+          fields: updateFields
         });
-        console.log(`📝 Updated duplicate record ${duplicate.id}`);
+        console.log(`📝 Updated duplicate record ${duplicate.id}${result.gifBase64 ? ' with GIF recording' : ''}`);
       } catch (error) {
         console.error(`❌ Failed to update duplicate ${duplicate.id}:`, error);
       }
@@ -310,7 +405,9 @@ async function startNexus() {
           NOT(BLANK() = {play_url}),
           NOT(BLANK() = {repo_url})
         )`,
-        maxRecords: availableWorkers.toString()
+        maxRecords: availableWorkers.toString(),
+        'sort[0][field]': 'prioritize',
+        'sort[0][direction]': 'desc'
       });
       
       const data = await airtableRequest('GET', `?${params}`);
@@ -364,6 +461,10 @@ function getMonitoringStatus() {
       repoUrl: worker.record.repo_url,
       demoUrl: worker.record.play_url,
       status: worker.status,
+      stage: worker.stage || 'Starting analysis',
+      stepsCompleted: worker.stepsCompleted || 0,
+      totalSteps: worker.totalSteps || 6,
+      currentPrompt: worker.currentPrompt || 'Initializing...',
       startTime: worker.startTime,
       duration: Date.now() - worker.startTime.getTime()
     })),

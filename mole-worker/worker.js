@@ -5,16 +5,22 @@ import { CONFIG, validateConfig, isDevelopment, useRealAPIs, getModelName } from
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
+
 // Validate configuration on startup
 validateConfig()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+
 // Docker worker helper function
 async function runWorkerDocker(prompt) {
   try {
+    // Ensure GIF directory exists on host
+    await Bun.spawn(['mkdir', '-p', '/tmp/agent_history_gifs']).exited;
+    
     const proc = Bun.spawn(['docker', 'run', '--rm', 
+      '-v', '/tmp/agent_history_gifs:/tmp/agent_history_gifs',
       '-e', `AI_PROVIDER=${CONFIG.AI_PROVIDER}`,
       '-e', `OPENAI_API_KEY=${process.env.OPENAI_API_KEY}`, 
       '-e', `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`,
@@ -165,9 +171,12 @@ function filterDemoUrls(urls) {
   );
 }
 
-async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
+async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='', statusReporter = null) {
   // check all are accessible
   console.log('checking basic check')
+  
+  if (statusReporter) statusReporter('Checking repository access', 1, 'Inferring README URL from repository');
+  
   let checkedReadmeUrl = readmeUrl
   if (!readmeUrl) {
     checkedReadmeUrl = await inferReadmeUrl(repoUrl)
@@ -181,6 +190,8 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   }
   
   // Try to infer demo URL from README and repo if not provided
+  if (statusReporter) statusReporter('Checking demo URL', 2, 'Inferring demo URL from README and repository metadata');
+  
   let checkedDemoUrl = demoUrl
   if (!demoUrl) {
     checkedDemoUrl = await inferDemoUrl(checkedReadmeUrl, repoUrl)
@@ -199,18 +210,22 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   }
 
   console.log('checking readme check')
+  if (statusReporter) statusReporter('Analyzing README', 3, 'Checking if README is templated, AI-generated, or project-specific');
+  
   const readmeCheckResult = await readmeCheck(checkedReadmeUrl)
   console.log('result:', readmeCheckResult)
   if (readmeCheckResult.toUpperCase().startsWith('TEMPLATED')) {
     return {
       decision: 'false',
       reason: readmeCheckResult,
+      model: getModelName(),
     }
   }
   if (readmeCheckResult.toUpperCase().startsWith('AI_GENERATED')) {
     return {
       decision: 'false',
       reason: readmeCheckResult,
+      model: getModelName(),
     }
   }
 
@@ -218,6 +233,7 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
     return {
       decision: 'false',
       reason: 'AI inference error on readme check: ' + readmeCheckResult,
+      model: getModelName(),
     }
   }
   
@@ -226,55 +242,67 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
     return {
       decision: 'false',
       reason: 'No demo URL found or provided',
+      model: getModelName(),
     }
   }
   
   console.log('checking live demo check')
+  if (statusReporter) statusReporter('Testing live demo', 4, `Opening browser to test: ${checkedDemoUrl}`);
+  
   const liveDemoResult = await liveDemoCheck(checkedDemoUrl)
   console.log('result:', liveDemoResult)
 
-  if (liveDemoResult.toUpperCase().startsWith('DEMO_LINK')) {
+  if (liveDemoResult.result.toUpperCase().startsWith('DEMO_LINK')) {
     // return {
     //   decision: 'true',
     //   reason: 'Live demo is working: ' + liveDemoResult,
     // }
+    if (statusReporter) statusReporter('Reality check', 5, 'Testing if demo is a real application vs placeholder');
+    
     const isRealResult = await isRealCheck(checkedDemoUrl)
     console.log('result:', isRealResult)
-    if (isRealResult.toUpperCase().startsWith('NO_TASK')) {
+    if (isRealResult.result.toUpperCase().startsWith('NO_TASK')) {
       return {
         decision: 'false',
-        reason: isRealResult,
+        reason: isRealResult.result,
         model: getModelName(),
+        gifPath: isRealResult.gifPath,
       }
-    } else if (isRealResult.toUpperCase().startsWith('DEMO')) {
+    } else if (isRealResult.result.toUpperCase().startsWith('DEMO')) {
       return {
         decision: 'false',
-        reason: 'Link is a demo, not a shipped project: ' + isRealResult,
+        reason: isRealResult.result,
         model: getModelName(),
+        gifPath: isRealResult.gifPath,
       }
-    } else if (isRealResult.toUpperCase().startsWith('REAL')) {
+    } else if (isRealResult.result.toUpperCase().startsWith('REAL')) {
       return {
         decision: 'true',
-        reason: 'Live demo is a real project: ' + isRealResult,
+        reason: isRealResult.result,
         model: getModelName(),
+        gifPath: isRealResult.gifPath,
       }
-    } else if (isRealResult.toUpperCase().startsWith('HUMAN')) {
+    } else if (isRealResult.result.toUpperCase().startsWith('HUMAN')) {
       return {
         decision: 'human',
-        reason: 'Requires human evaluation: ' + isRealResult,
+        reason: isRealResult.result,
         model: getModelName(),
+        gifPath: isRealResult.gifPath,
       }
     } else {
       return {
         decision: 'false',
-        reason: 'AI inference error on live demo check: ' + isRealResult,
+        reason: 'AI inference error on live demo check: ' + isRealResult.result,
         model: getModelName(),
+        gifPath: isRealResult.gifPath,
       }
     }
   }
 
-  if (liveDemoResult.toUpperCase().startsWith('VIDEO_LINK')) {
+  if (liveDemoResult.result.toUpperCase().startsWith('VIDEO_LINK')) {
     console.log('checking video check')
+    if (statusReporter) statusReporter('Video validation', 5, 'Checking if video demonstrates project functionality');
+    
     const videoResult = await videoCheck(checkedDemoUrl)
     console.log('result:', videoResult)
     if (videoResult == 'success') {
@@ -285,6 +313,8 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
       }
     } else if (videoResult == 'failed') {
       console.log('checking repo for release')
+      if (statusReporter) statusReporter('Release check', 6, 'Checking repository for deployment releases');
+      
       const checkRepoResult = await checkRepoForRelease(repoUrl, checkedReadmeUrl)
       if (checkRepoResult.toUpperCase().startsWith('HAS_RELEASE')) {
         return {
@@ -315,19 +345,21 @@ async function analyzeHackathonProject(repoUrl='', demoUrl='', readmeUrl='') {
   }
 
 
-  if (liveDemoResult.toUpperCase().startsWith('NOT_WORKING')) {
+  if (liveDemoResult.result.toUpperCase().startsWith('NOT_WORKING')) {
     return {
       decision: 'false',
-      reason: 'Live demo is not working: ' + liveDemoResult,
+      reason: liveDemoResult.result,
       model: getModelName(),
+      gifPath: liveDemoResult.gifPath,
     }
   }
 
   // if result doesn't start with demo link, video link, or not working, it's an inference error
   return {
     decision: 'false',
-    reason: 'AI inference error on live demo check: ' + liveDemoResult,
+    reason: 'AI inference error on live demo check: ' + liveDemoResult.result,
     model: getModelName(),
+    gifPath: liveDemoResult.gifPath,
   }
 }
 
@@ -515,17 +547,22 @@ async function liveDemoCheck(demoUrl) {
     const promptText = await prompt('live_demo', { url: demoUrl })
     const result = await runWorkerDocker(promptText)
 
-    console.log('python result', result.result);
+    console.log('worker result', result.result);
+    console.log('worker gif path', result.gif);
     
     // Handle empty or invalid responses
     if (!result.result || result.result.trim() === '' || result.result === 'none') {
-      return 'NOT_WORKING: Browser automation returned empty result'
+      return { result: 'NOT_WORKING: Browser automation returned empty result' }
     }
     
-    return result.result
+    // Return both result and gif path for potential upload
+    return {
+      result: result.result,
+      gifPath: result.gif
+    }
   } catch (error) {
     console.error('Error calling docker worker:', error);
-    return 'NOT_WORKING: Docker worker error - ' + error.message;
+    return { result: 'NOT_WORKING: Docker worker error - ' + error.message };
   }
 }
 
@@ -534,7 +571,7 @@ async function videoCheck(demoUrl) {
     const promptText = await prompt('video_justification', { url: demoUrl })
     const workerResult = await runWorkerDocker(promptText)
 
-    console.log('python result', workerResult.result);
+    console.log('worker result', workerResult.result);
 
     if (workerResult.result.toUpperCase().startsWith('JUSTIFIED')) {
       return 'success';
@@ -568,7 +605,7 @@ async function isRealCheck(demoUrl) {
       testingTask = 'TASK: ' + testingTask;
     } else {
       // Invalid response format - treat as inference error
-      return 'HUMAN: AI inference error - invalid testing task format'
+      return { result: 'HUMAN: AI inference error - invalid testing task format' }
     }
   }
   
@@ -580,27 +617,53 @@ async function isRealCheck(demoUrl) {
         testingTask.toLowerCase().includes('right-click') ||
         testingTask.toLowerCase().includes('drag') ||
         testingTask.toLowerCase().includes('special interaction')) {
-      return 'HUMAN: ' + testingTask.substring(8); // Remove "NO_TASK: " prefix
+      return { result: 'HUMAN: ' + testingTask.substring(8) }; // Remove "NO_TASK: " prefix
     }
-    return 'HUMAN: ' + testingTask.substring(8)
+    return { result: 'HUMAN: ' + testingTask.substring(8) }
   }
 
   const isRealPrompt = await prompt('is_real', { url: demoUrl, testing_task: testingTask })
   const isRealResponse = await runWorkerDocker(isRealPrompt)
 
-  return isRealResponse.result
+  return {
+    result: isRealResponse.result,
+    gifPath: isRealResponse.gif
+  }
 }
 
 async function checkRepoForRelease(repoUrl, readmeUrl) {
   const promptText = await prompt('has_release', { url: repoUrl })
   const workerResult = await runWorkerDocker(promptText)
   
-  console.log('python result', workerResult.result);
+  console.log('worker result', workerResult.result);
 
   if (workerResult.result.toUpperCase().startsWith("HAS_RELEASE") || workerResult.result.toUpperCase().startsWith("NO_RELEASE")) {
     return workerResult.result
   } else {
     return 'inference-error'
+  }
+}
+
+// CLI entry point for testing
+if (import.meta.main) {
+  const demoUrl = process.argv[2]
+  const repoUrl = process.argv[3]
+  
+  if (!demoUrl) {
+    console.error('Usage: bun run worker.js <demo_url> [repo_url]')
+    process.exit(1)
+  }
+  
+  try {
+    console.log(`🔍 Analyzing demo: ${demoUrl}`)
+    if (repoUrl) console.log(`📁 Repository: ${repoUrl}`)
+    
+    const result = await analyzeHackathonProject(repoUrl || '', demoUrl)
+    console.log('📊 Analysis Result:')
+    console.log(JSON.stringify(result, null, 2))
+  } catch (error) {
+    console.error('❌ Error:', error.message)
+    process.exit(1)
   }
 }
 

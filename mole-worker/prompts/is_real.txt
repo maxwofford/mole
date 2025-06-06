@@ -12,6 +12,6 @@ Respond with one of:
 - `REAL: what you did to test it` - Fully functional application
 - `DEMO: what was fake or hardcoded` - Demo or placeholder only
 - `NO_TASK: reason` - Unable to perform the task
-- `HUMAN: reason` - Requires human evaluation (mobile apps, CLI tools, complex interactions)
+- `HUMAN: reason` - Requires human evaluation (mobile apps, CLI tools, Expo builds, complex interactions)
 
 No yapping.

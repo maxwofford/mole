@@ -70,6 +70,7 @@ function getMonitoringHTML() {
             border-radius: 6px; 
             margin-bottom: 10px; 
             background: #f9fafb; 
+            position: relative;
         }
         .worker-status { 
             display: inline-block; 
@@ -89,6 +90,52 @@ function getMonitoringHTML() {
         h2 { color: #374151; margin-top: 0; display: flex; align-items: center; }
         .no-workers { color: #6b7280; font-style: italic; text-align: center; padding: 20px; }
         .last-updated { color: #9ca3af; font-size: 0.8em; margin-top: 10px; }
+        .stage-info { color: #4b5563; font-size: 0.9em; margin-top: 8px; }
+        .progress-bar { 
+            width: 100%; 
+            height: 6px; 
+            background: #e5e7eb; 
+            border-radius: 3px; 
+            margin: 8px 0; 
+            overflow: hidden;
+        }
+        .progress-fill { 
+            height: 100%; 
+            background: #2563eb; 
+            transition: width 0.3s ease;
+        }
+        .step-count { 
+            font-size: 0.8em; 
+            color: #6b7280; 
+            margin-left: 8px;
+        }
+        .current-prompt { 
+            background: #f3f4f6; 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+            font-family: monospace; 
+            font-size: 0.85em; 
+            color: #374151; 
+            margin-top: 8px; 
+            border-left: 3px solid #2563eb;
+            cursor: help;
+            position: relative;
+        }
+        .current-prompt:hover::after {
+            content: "Current AI prompt or action being performed";
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1f2937;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            white-space: nowrap;
+            z-index: 1000;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
@@ -162,21 +209,34 @@ function getMonitoringHTML() {
                 if (data.activeWorkers.length === 0) {
                     workersDiv.innerHTML = '<div class="no-workers">No active workers</div>';
                 } else {
-                    workersDiv.innerHTML = data.activeWorkers.map(worker => \`
+                    workersDiv.innerHTML = data.activeWorkers.map(worker => {
+                        const progressPercent = Math.round((worker.stepsCompleted / worker.totalSteps) * 100);
+                        return \`
                         <div class="worker-item">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div>
                                     <strong>Record:</strong> \${worker.recordId} 
                                     <span class="worker-status status-\${worker.status}">\${worker.status}</span>
+                                    <span class="step-count">(\${worker.stepsCompleted}/\${worker.totalSteps} checks)</span>
                                 </div>
                                 <div class="duration">\${formatDuration(worker.duration)}</div>
+                            </div>
+                            <div class="stage-info">
+                                <strong>Stage:</strong> \${worker.stage}
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: \${progressPercent}%"></div>
+                            </div>
+                            <div class="current-prompt" title="Current AI action: \${worker.currentPrompt}">
+                                \${worker.currentPrompt.length > 60 ? worker.currentPrompt.substring(0, 60) + '...' : worker.currentPrompt}
                             </div>
                             <div style="margin-top: 8px;">
                                 <a href="\${worker.repoUrl}" target="_blank" class="repo-url">\${worker.repoUrl}</a>
                                 \${worker.demoUrl ? \`<br><a href="\${worker.demoUrl}" target="_blank" class="repo-url">\${worker.demoUrl}</a>\` : ''}
                             </div>
                         </div>
-                    \`).join('');
+                        \`;
+                    }).join('');
                 }
                 
                 // Update last updated time
