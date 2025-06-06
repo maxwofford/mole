@@ -91,7 +91,7 @@ export function getModelName() {
     case 'gemini':
       return 'gemini-2.0-flash'
     case 'anthropic':
-      return 'claude-3-5-sonnet-20240620'
+      return 'claude-sonnet-4-20250514'
     case 'ollama':
       return CONFIG.OLLAMA_MODEL
     case 'mock':
