@@ -1,0 +1,34 @@
+Visit {{url}} and test if this is a working web application with real functionality.
+
+If you need an email for testing, use a burner service:
+- https://tmail.link/
+
+Test based on the type of application:
+
+**For traditional web apps** (forms, dashboards, social apps):
+1. Submit any forms (signup, contact, registration, etc.)
+2. Look for confirmation messages or success indicators  
+3. Check for email confirmations after form submission
+4. Test if submitted data appears anywhere on the site
+5. Refresh the page and verify data persists
+6. Look for user accounts, login systems, or session management
+
+**For games and interactive applications**:
+1. Test if the game/application loads and runs properly
+2. Check if interactive elements work (controls, buttons, gameplay)
+3. Verify the application responds to user input correctly
+4. Test core functionality (game mechanics, features, etc.)
+5. A fully playable, functional game/app counts as REAL
+
+IMPORTANT classification rules:
+- **Games, tools, calculators, interactive demos**: If they work as intended and aren't broken, they are REAL
+- **Form-based apps**: Need confirmed data persistence (email confirmations, saved data, etc.)
+- **One-way forms**: Just showing "thank you" without backend processing are DEMO
+- **Broken or non-functional**: Anything that doesn't work properly is NOT_WORKING
+
+Respond with:
+- `REAL: description` - Fully functional web application (includes working games, tools, interactive apps)
+- `DEMO: reason` - Demo/placeholder with limited or broken functionality
+- `NOT_WORKING: reason` - Broken or non-functional
+
+Evidence varies by type: games need working mechanics, form apps need data persistence, tools need functional features.

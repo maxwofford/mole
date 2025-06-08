@@ -1,0 +1,13 @@
+Infer the following projects links if left blank:
+
+Demo link: this cannot be the repo link (ie. https://maxwofford.com)
+Repo link: this is a repo link on a public git host (ie. https://github.com/maxwofford/maxwofford.github.io)
+Readme link: The link to the raw markdown for a project (ie. https://raw.githubusercontent.com/maxwofford/maxwofford.github.io/refs/heads/master/README.md)
+
+Return back in this format. You can leave a field blank if you can't find a link for it. Include no other description or explaination– no yapping.
+
+DEMO:
+REPO:
+READ:
+
+Here is the project data you are provided: {{project_data}}

@@ -1,0 +1,22 @@
+Analyze the repository and README to classify the project type.
+
+Repository: {{repo_url}}
+README content: {{readme_content}}
+
+Classify into ONE of these types:
+- `STATIC_WEBSITE` - Portfolio, documentation, or static content sites
+- `WEB_APP` - Interactive applications with login, forms, databases, etc
+- `DOWNLOADABLE_APPLICATION` - Desktop apps, executables, installers
+- `MOBILE_APP` - iOS/Android apps, APK files, app store links
+- `DISCORD_BOT` - Discord bot applications
+- `SLACK_BOT` - Slack bot applications
+
+Look for these indicators:
+- Static websites: portfolios, docs, marketing sites, personal pages
+- Web apps: login/signup, user accounts, data persistence, forms, dashboards
+- Downloadable: .exe, .dmg, .deb files, desktop application descriptions
+- Mobile apps: APK links, app store badges, mobile screenshots, React Native/Flutter
+- Discord bots: Discord.js, discord.py, bot commands, guild management
+- Slack bots: Slack API, slash commands, workspace integration
+
+Respond with only the classification: `STATIC_WEBSITE`, `WEB_APP`, `DOWNLOADABLE_APPLICATION`, `MOBILE_APP`, `DISCORD_BOT`, or `SLACK_BOT`

@@ -1,0 +1,13 @@
+Visit {{url}} and test basic functionality of this static website.
+
+Test features like:
+- Navigation links work
+- Images and content load properly
+- Interactive elements (buttons, forms, animations)
+- Overall functionality and polish
+
+Respond with EXACTLY one of these formats:
+- `WORKING: description` - Site functions as expected
+- `NOT_WORKING: reason` - Broken links, missing content, or major issues
+
+Start your response with the status code word.
