@@ -1,0 +1,29 @@
+static website:
+  action: find some features and click through them
+web app:
+  description: website with features such as login or settings. probably persists data in a database.
+  action: read prompt "WEB_APP"
+downloadable application:
+  examples: 
+    - itch.io link that doesn't play in browser but does have a download link
+    - python script with a released executable
+  action: return "HUMAN: downloadable application needs review"
+mobile app:
+  examples:
+    - app store
+    - android play store
+    - expo app with an APK link
+    - github release with an APK link
+  action: return "HUMAN: android/iphone app needs review"
+discord bot:
+  action: return "HUMAN: discord bot needs review"
+slack bot:
+  action: return "HUMAN: slack bot needs review"
+video_of_hardware:
+  action: return "WORKING DEMO: this is justified because it's a link and the video is the best they can upload"
+video_of_website:
+  action: return "NOT DEMO: a website demo should be a link to the website, not a video of the website"
+video_of_terminal:
+  action: search for a download or app store link. If you find that it's a "HUMAN", but if you don't it's "NOT WORKING"
+video_of_app:
+  action: search for a download or app store link. If you find that it's a "HUMAN", but if you don't it's "NOT WORKING"
