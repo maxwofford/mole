@@ -42,30 +42,41 @@ async function prompt(name, replacements = {}) {
 }
 
 async function inference(promptText) {
+  const AI_TIMEOUT = 30000; // 30 seconds timeout
   const ai = getAIInstance()
   
-  if (AI_PROVIDER === 'gemini') {
-    const result = await ai.generateContent(promptText)
-    const response = await result.response
-    return response.text().trim()
-  }
-  
-  if (AI_PROVIDER === 'anthropic') {
-    const result = await ai.messages.create({
-      model: 'claude-3-5-sonnet-20240620',
-      max_tokens: 1000,
-      messages: [
-        {
-          role: 'user',
-          content: promptText,
-        },
-      ],
-    })
+  const inferencePromise = (async () => {
+    if (AI_PROVIDER === 'gemini') {
+      const result = await ai.generateContent(promptText)
+      const response = await result.response
+      return response.text().trim()
+    }
     
-    return result.content[0].text.trim()
-  }
+    if (AI_PROVIDER === 'anthropic') {
+      const result = await ai.messages.create({
+        model: 'claude-3-5-sonnet-20240620',
+        max_tokens: 1000,
+        messages: [
+          {
+            role: 'user',
+            content: promptText,
+          },
+        ],
+      })
+      
+      return result.content[0].text.trim()
+    }
+    
+    throw new Error(`Unsupported AI provider: ${AI_PROVIDER}`)
+  })();
   
-  throw new Error(`Unsupported AI provider: ${AI_PROVIDER}`)
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`AI inference timed out after ${AI_TIMEOUT}ms`));
+    }, AI_TIMEOUT);
+  });
+
+  return await Promise.race([inferencePromise, timeoutPromise]);
 }
 
 async function getReadmeContent(repoUrl) {
@@ -166,7 +177,11 @@ async function classifyProjectType(repoUrl, readmeContent) {
 
 // Docker worker helper function for browser automation
 async function runWorkerDocker(prompt) {
+  const DOCKER_TIMEOUT = 300000; // 5 minutes timeout
+  
   try {
+    console.log('🐳 Starting Docker worker...');
+    
     // Ensure GIF directory exists on host
     await Bun.spawn(['mkdir', '-p', '/tmp/agent_history_gifs']).exited;
     
@@ -183,29 +198,42 @@ async function runWorkerDocker(prompt) {
       stderr: 'pipe'
     });
 
-    const output = await new Response(proc.stdout).text();
-    const error = await new Response(proc.stderr).text();
-    
-    const exitCode = await proc.exited;
-    
-    if (exitCode !== 0) {
-      console.error('Docker worker error:', error);
-      throw new Error(`Docker worker failed with exit code ${exitCode}: ${error}`);
-    }
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        proc.kill();
+        reject(new Error(`Docker worker timed out after ${DOCKER_TIMEOUT}ms`));
+      }, DOCKER_TIMEOUT);
+    });
 
-    try {
-      // Extract JSON from the end of the output (after all the INFO logs)
-      const lines = output.trim().split('\n');
-      const jsonLine = lines[lines.length - 1];
-      return JSON.parse(jsonLine);
-    } catch (parseError) {
-      console.error('Failed to parse Docker worker output as JSON:');
-      console.error('Raw output:', output);
-      console.error('Parse error:', parseError.message);
-      throw new Error(`Invalid JSON from Docker worker: ${parseError.message}`);
-    }
+    const resultPromise = (async () => {
+      const output = await new Response(proc.stdout).text();
+      const error = await new Response(proc.stderr).text();
+      
+      const exitCode = await proc.exited;
+      
+      if (exitCode !== 0) {
+        console.error('❌ Docker worker error:', error);
+        throw new Error(`Docker worker failed with exit code ${exitCode}: ${error}`);
+      }
+
+      try {
+        // Extract JSON from the end of the output (after all the INFO logs)
+        const lines = output.trim().split('\n');
+        const jsonLine = lines[lines.length - 1];
+        console.log('✅ Docker worker completed');
+        return JSON.parse(jsonLine);
+      } catch (parseError) {
+        console.error('❌ Failed to parse Docker worker output as JSON:');
+        console.error('Raw output:', output);
+        console.error('Parse error:', parseError.message);
+        throw new Error(`Invalid JSON from Docker worker: ${parseError.message}`);
+      }
+    })();
+
+    return await Promise.race([resultPromise, timeoutPromise]);
   } catch (error) {
-    console.error('Error running docker worker:', error);
+    console.error('❌ Error running docker worker:', error);
     throw error;
   }
 }
