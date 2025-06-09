@@ -2,6 +2,16 @@ import express from 'express'
 import path from 'path'
 import { analyzeProject, analyzeProjectFromLinks } from '../worker/worker.js'
 
+// Airtable setup
+const AIRTABLE_BASE_ID = 'appJoAAl0y0Pr2itM'
+const AIRTABLE_TABLE_ID = 'tblVnBAyJGFUzRDes'
+
+if (!process.env.AIRTABLE_API_KEY) {
+  console.error('❌ AIRTABLE_API_KEY not found in environment variables')
+  console.error('💡 Make sure .env file exists with AIRTABLE_API_KEY=...')
+  process.exit(1)
+}
+
 const app = express()
 const PORT = process.env.PORT || 3002
 
@@ -14,6 +24,7 @@ const jobs = new Map()
 
 // Polling configuration
 const POLL_INTERVAL = 5000 // 5 seconds
+const MAX_WORKERS = parseInt(process.env.MAX_MOLE_WORKERS) || 2
 let isPolling = false
 let pollQueue = [] // Simple queue for demo URLs to process
 
@@ -23,6 +34,31 @@ const workerStats = {
   completed: 0,
   failed: 0,
   startTime: Date.now()
+}
+
+// Helper function to make Airtable API calls
+async function airtableRequest(method, endpoint, body = null) {
+  const url = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${AIRTABLE_TABLE_ID}/${endpoint}`
+  
+  const options = {
+    method,
+    headers: {
+      'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json'
+    }
+  }
+  
+  if (body) {
+    options.body = JSON.stringify(body)
+  }
+  
+  const response = await fetch(url, options)
+  
+  if (!response.ok) {
+    throw new Error(`Airtable API error: ${response.status} ${response.statusText}`)
+  }
+  
+  return await response.json()
 }
 
 // Status updates for real-time feedback
@@ -442,23 +478,146 @@ This is a web app for tracking habits..."></textarea>
 // Polling logic
 async function startPolling() {
   isPolling = true
-  console.log('🔄 Starting polling system...')
+  console.log('🔄 Starting Airtable polling system...')
   
   while (isPolling) {
     try {
-      if (pollQueue.length > 0 && workerStats.active < 2) { // Max 2 concurrent workers
-        const queueItem = pollQueue.shift()
-        processQueueItem(queueItem)
+      console.log(`🔍 Checking for Airtable records... (Active workers: ${workerStats.active}/${MAX_WORKERS})`)
+      
+      const availableWorkers = MAX_WORKERS - workerStats.active
+      
+      if (availableWorkers === 0) {
+        console.log('⏳ All workers busy, waiting...')
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL))
+        continue
+      }
+      
+      // Fetch records from Airtable where ai_guess is blank
+      const params = new URLSearchParams({
+        filterByFormula: `AND(
+          {ai_guess} = BLANK(),
+          NOT(BLANK() = {play_url}),
+          NOT(BLANK() = {repo_url})
+        )`,
+        maxRecords: availableWorkers.toString(),
+        'sort[0][field]': 'prioritize',
+        'sort[0][direction]': 'desc'
+      })
+      
+      const data = await airtableRequest('GET', `?${params}`)
+      const records = data.records
+      
+      if (records.length === 0) {
+        console.log('😴 No Airtable records to process, waiting...')
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL))
+        continue
+      }
+      
+      console.log(`📋 Found ${records.length} Airtable records, processing...`)
+      
+      // Process each record
+      for (const record of records) {
+        processAirtableRecord(record)
       }
       
       await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL))
     } catch (error) {
-      console.error('❌ Error in polling loop:', error)
+      console.error('❌ Error in Airtable polling loop:', error)
       await new Promise(resolve => setTimeout(resolve, 10000)) // Wait 10s on error
     }
   }
   
-  console.log('⏹️ Polling stopped')
+  console.log('⏹️ Airtable polling stopped')
+}
+
+async function processAirtableRecord(record) {
+  workerStats.active++
+  
+  const jobId = record.id
+  const repoUrl = record.fields.repo_url
+  const demoUrl = record.fields.play_url
+  
+  console.log(`🚀 Processing Airtable record: ${record.id} (${repoUrl})`)
+  
+  // Initialize job status
+  jobs.set(jobId, {
+    id: jobId,
+    status: 'running',
+    recordId: record.id,
+    repoUrl: repoUrl,
+    demoUrl: demoUrl,
+    progress: 0,
+    currentStep: 'Starting analysis...',
+    result: null,
+    startedAt: Date.now()
+  })
+  
+  try {
+    // Analyze the project
+    const result = await analyzeProject(repoUrl, demoUrl, null, (step, progress, description) => {
+      const job = jobs.get(jobId)
+      if (job) {
+        job.currentStep = step
+        job.progress = progress
+        job.description = description
+      }
+    })
+    
+    console.log(`📊 Analysis result for ${record.id}:`, result)
+    
+    // Update Airtable with the result
+    const updateData = {
+      fields: {
+        ai_guess: result.decision,
+        ai_reasoning: result.reason || 'No reason provided'
+      }
+    }
+    
+    await airtableRequest('PATCH', record.id, updateData)
+    console.log(`✅ Updated Airtable record ${record.id}`)
+    
+    // Update job status
+    const job = jobs.get(jobId)
+    if (job) {
+      job.status = 'completed'
+      job.progress = 100
+      job.result = result
+      job.currentStep = 'Analysis complete'
+      job.completedAt = Date.now()
+      
+      results.set(jobId, result)
+    }
+    
+    workerStats.completed++
+    console.log(`✅ Completed Airtable record: ${record.id}`)
+    
+  } catch (error) {
+    console.error(`❌ Error processing Airtable record ${record.id}:`, error)
+    
+    // Try to update Airtable with error
+    try {
+      await airtableRequest('PATCH', record.id, {
+        fields: {
+          ai_guess: 'error',
+          ai_reasoning: `Error: ${error.message}`
+        }
+      })
+    } catch (updateError) {
+      console.error(`❌ Failed to update Airtable with error:`, updateError)
+    }
+    
+    const job = jobs.get(jobId)
+    if (job) {
+      job.status = 'failed'
+      job.error = error.message
+      job.currentStep = 'Analysis failed'
+      job.completedAt = Date.now()
+    }
+    
+    workerStats.failed++
+  } finally {
+    workerStats.active--
+  }
 }
 
 async function processQueueItem(queueItem) {
